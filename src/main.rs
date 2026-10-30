@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+
 // mod guess;
 // mod shadowing;
 // mod borrowing;
@@ -402,6 +403,16 @@ trait Human {
     fn sleep(&self) -> ();
 }
 
+trait HumanSayGoodBye {
+    fn good_bye(&self, name: &str) -> String;
+}
+
+/**
+ * here is a trait HumanActivity
+ * that extends Human and HumanSayGoodBye
+ */
+trait HumanActivity: Human + HumanSayGoodBye {}
+
 impl Human for Person {
     fn speak(&self, name: &str) -> String {
         format!("hello, {} I'm {}", name, self.first_name)
@@ -417,6 +428,12 @@ impl Human for Person {
     }
 }
 
+impl HumanSayGoodBye for Person {
+    fn good_bye(&self, name: &str) -> String {
+        format!("{} says to , good bye, {}", self.first_name, name)
+    }
+}
+
 struct ListedPerson {
     data: Vec<Person>,
 }
@@ -426,6 +443,11 @@ trait Crud<T> {
     fn create(&mut self, data: T) -> T;
     fn update(&mut self, id: &str, data: T) -> Option<T>;
     fn delete(&mut self, id: &str) -> Option<T>;
+
+    // default trait
+    fn version(&self) -> String {
+        String::from("1.0.0")
+    }
 }
 
 impl Crud<Person> for ListedPerson {
@@ -450,9 +472,18 @@ impl Crud<Person> for ListedPerson {
     }
 }
 
+fn reference_human_call(human: &impl Human) {
+    println!("{}", human.speak("rizqi"));
+}
+
+fn human_say_good_bye(human: &(impl Human + HumanSayGoodBye)) {
+    println!("{}", human.speak("rizqi"));
+    println!("{}", human.good_bye("rizqi"));
+}
+
 #[test]
 fn test_trait_1() {
-    let person = Person {
+    let p1 = Person {
         id: String::from("1"),
         first_name: String::from("John"),
         last_name: String::from("Doe"),
@@ -461,17 +492,451 @@ fn test_trait_1() {
         height: 1.80,
         weight: 80.0,
     };
-    println!("{}", person.speak("lena"));
-    println!("{}", person.walk("tower garden"));
-    println!("{}", person.eat("apple"));
-    person.sleep();
+    let p2 = Person {
+        id: String::from("2"),
+        first_name: String::from("John"),
+        last_name: String::from("Doe"),
+        age: 30,
+        gender: 'M',
+        height: 1.80,
+        weight: 80.0,
+    };
+    let p3 = Person {
+        id: String::from("3"),
+        first_name: String::from("John"),
+        last_name: String::from("Doe"),
+        age: 30,
+        gender: 'M',
+        height: 1.80,
+        weight: 80.0,
+    };
+    println!("{}", p1.speak("lena"));
+    println!("{}", p1.walk("tower garden"));
+    println!("{}", p1.eat("apple"));
+    p1.sleep();
+
+    println!();
+
+    reference_human_call(&p1);
+    human_say_good_bye(&p1);
 
     println!();
 
     let mut list_person = ListedPerson { data: vec![] };
-    let person1 = list_person.create(person);
+    let person1: Person = list_person.create(p1);
+    list_person.create(p2);
+    list_person.create(p3);
+
+    println!("{}", list_person.version());
     println!("create: {:?}", person1);
-    println!("read: {:?}", list_person.read());
+    println!("read: {:#?}", list_person.read());
     println!("update: {:?}", list_person.update("1", person1));
     println!("delete: {:?}", list_person.delete("1"));
+}
+
+use chrono::{DateTime, Local, NaiveDate, NaiveTime};
+
+#[derive(Debug, Clone)]
+struct Post {
+    id: String,
+    title: String,
+    description: String,
+    content: String,
+    timestamp: DateTime<Local>,
+}
+
+#[derive(Debug)]
+struct APIResponse<T> {
+    data: T,
+    status_code: u16,
+    message: String,
+}
+
+impl<T> APIResponse<T> {
+    fn new(data: T, status_code: u16, message: String) -> Self {
+        APIResponse {
+            data,
+            status_code,
+            message,
+        }
+    }
+
+    fn get_data(&self) -> &T {
+        &self.data
+    }
+
+    fn get_message(&self) -> &String {
+        &self.message
+    }
+
+    fn get_status_code(&self) -> &u16 {
+        &self.status_code
+    }
+}
+
+#[derive(Debug)]
+enum Value<T> {
+    NONE,
+    DATA(T),
+}
+
+#[test]
+fn post_get() {
+    let date = chrono::Local::now();
+    let post_1: Post = Post {
+        id: "1".to_string(),
+        title: "Ex adipisicing".to_string(),
+        description: "Fugiat Lorem".to_string(),
+        content: "Ex aliquip ea deserunt sint dolor".to_string(),
+        timestamp: date,
+    };
+    let post_response: APIResponse<Post> = APIResponse {
+        data: post_1,
+        status_code: 200,
+        message: "success".to_string(),
+    };
+    println!("{:#?}", post_response);
+    println!("{:?}", post_response.get_data());
+}
+
+#[test]
+fn generic_enum() {
+    let value: Value<String> = Value::DATA(String::from("rizqi"));
+
+    match value {
+        Value::NONE => {
+            println!("none");
+        }
+        Value::DATA(data) => {
+            println!("value: {}", data);
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Identity<T: Human> {
+    info: T, // generic bound
+}
+
+#[test]
+fn identity_test() {
+    let p1 = Person {
+        id: String::from("1"),
+        first_name: String::from("John"),
+        last_name: String::from("Doe"),
+        age: 30,
+        gender: 'M',
+        height: 1.80,
+        weight: 80.0,
+    };
+    let identity: Identity<Person> = Identity { info: p1 };
+    println!("{:?}", identity);
+}
+
+// generic function
+fn max<T: PartialOrd>(v1: T, v2: T) -> T {
+    if v1 > v2 { v1 } else { v2 }
+}
+
+#[test]
+fn test_max() {
+    println!("{}", max(1, 2));
+    println!("{}", max("a", "b"));
+}
+/**
+ * T -> entity
+ * K -> key
+ */
+trait SkeletonCrud<K, T = Self>
+where
+    T: Clone,
+{
+    fn create(&mut self, data: T) -> T;
+    fn read(&self) -> Vec<T>;
+    fn find(&self, id: K) -> Option<T>;
+    fn update(&mut self, id: K, data: T) -> Option<T>;
+    fn delete(&mut self, id: K) -> Option<T>;
+}
+
+struct DefineListForAny<T> {
+    data: Vec<T>,
+}
+
+impl<T> DefineListForAny<T> {
+    fn new() -> Self {
+        DefineListForAny { data: vec![] }
+    }
+}
+
+impl SkeletonCrud<String, Post> for DefineListForAny<Post> {
+    fn create(&mut self, data: Post) -> Post {
+        self.data.push(data.clone());
+        data
+    }
+    fn read(&self) -> Vec<Post> {
+        if self.data.is_empty() {
+            return vec![];
+        }
+        self.data.clone()
+    }
+    fn find(&self, id: String) -> Option<Post> {
+        let exists: Option<Post> = self.data.iter().find(|p| p.id == id).cloned();
+
+        if exists.is_none() {
+            return None;
+        }
+
+        let post: Post = exists.unwrap();
+        Some(post)
+    }
+    fn update(&mut self, id: String, data: Post) -> Option<Post> {
+        let slot: Option<&mut Post> = self.data.iter_mut().find(|p| p.id == id);
+        if slot.is_none() {
+            return None;
+        }
+        let slot: &mut Post = slot.unwrap();
+        *slot = data.clone();
+        Some(data)
+    }
+    fn delete(&mut self, id: String) -> Option<Post> {
+        let index: usize = self.data.iter().position(|p| p.id == id).unwrap();
+        if index < self.data.len() {
+            Some(self.data.remove(index))
+        } else {
+            None
+        }
+    }
+}
+
+#[test]
+fn test_crud_post() {
+    let mut list: DefineListForAny<Post> = DefineListForAny::new();
+
+    let post1: Post = Post {
+        id: String::from("1"),
+        title: String::from("Ex adipisicing"),
+        description: String::from("Fugiat Lorem"),
+        content: String::from("Ex aliquip ea deserunt sint dolor"),
+        timestamp: chrono::Local::now(),
+    };
+
+    let post2: Post = Post {
+        id: String::from("2"),
+        title: String::from("Ex adipisicing"),
+        description: String::from("Fugiat Lorem"),
+        content: String::from("Ex aliquip ea deserunt sint dolor"),
+        timestamp: chrono::Local::now(),
+    };
+
+    let post2_updated: Post = Post {
+        id: String::from("2"),
+        title: String::from("perbarui postingan id 2"),
+        description: String::from("Fugiat Lorem"),
+        content: String::from("Ex aliquip ea deserunt sint dolor"),
+        timestamp: chrono::Local::now(),
+    };
+
+    // masukkan data ke dalam vector list
+    list.create(post1);
+    list.create(post2);
+
+    println!();
+    println!("{:#?}\n", list.read());
+
+    println!();
+    println!("find_post: {:#?}\n", list.find("1".to_string()));
+
+    println!();
+    println!(
+        "update_post: {:#?}\n",
+        list.update("2".to_string(), post2_updated)
+    );
+
+    println!();
+    println!("delete_post: {:#?}\n", list.delete("1".to_string()));
+}
+
+use core::ops::{Add, Mul, Rem};
+
+struct Fruit {
+    name: String,
+    quantity: u32,
+    price: f32,
+    total_price: f64,
+}
+impl Mul for Fruit {
+    type Output = f64;
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.price as f64 * rhs.quantity as f64
+    }
+}
+
+#[test]
+fn test_mul() {
+    let apple: Fruit = Fruit {
+        name: String::from("apple"),
+        quantity: 2,
+        price: 2.0,
+        total_price: 0.0,
+    };
+
+    let banana: Fruit = Fruit {
+        name: String::from("banana"),
+        quantity: 4,
+        price: 3.0,
+        total_price: 0.0,
+    };
+
+    let total_price: f64 = apple * banana;
+    println!("total price: {:.2}", total_price);
+}
+
+use std::cmp::{Ordering, PartialEq, PartialOrd};
+
+impl PartialEq for Fruit {
+    fn eq(&self, other: &Self) -> bool {
+        self.quantity == other.quantity
+    }
+}
+
+impl PartialOrd for Fruit {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.quantity.partial_cmp(&other.quantity)
+    }
+}
+
+#[test]
+fn test_partial_cmp() {
+    let apple: Fruit = Fruit {
+        name: String::from("apple"),
+        quantity: 10,
+        price: 2.0,
+        total_price: 0.0,
+    };
+
+    let banana: Fruit = Fruit {
+        name: String::from("banana"),
+        quantity: 4,
+        price: 3.0,
+        total_price: 0.0,
+    };
+
+    let quantity_is_equal = apple == banana;
+    println!("quantity is equal: {}", quantity_is_equal);
+
+    let quantity_is_greater = apple > banana;
+    println!("quantity is greater: {}", quantity_is_greater);
+}
+
+// #[derive(Debug)]
+struct Joke {
+    id: u32,
+    question: &'static str,
+    answer: &'static str,
+    sensitive_data: Option<&'static str>,
+}
+
+use std::fmt::Debug;
+impl Debug for Joke {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Joke")
+            .field("id", &self.id)
+            .field("question", &self.question)
+            .field("answer", &self.answer)
+            .finish()
+    }
+}
+
+#[test]
+fn test_joke() {
+    let joke: Joke = Joke {
+        id: 1,
+        question: "mouse apa yang gerak",
+        answer: "mouse got",
+        sensitive_data: Some("qwert==="),
+    };
+    println!("{:#?}", joke);
+}
+
+// code example how define clouser
+fn str_convert_to_upper(v: &str, upper: fn(String) -> String) -> String {
+    let result = upper(v.to_string());
+    result
+}
+
+fn calculator<F>(a: i32, b: i32, operation: F) -> i32
+where
+    F: Fn(i32, i32) -> i32,
+{
+    operation(a, b)
+}
+
+struct Product {
+    id: &'static str,
+    name: &'static str,
+    price: i32,
+    quantity: i32,
+}
+
+impl Debug for Product {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Product")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("price", &self.price)
+            .field("qty", &self.quantity)
+            .finish()
+    }
+}
+
+#[test]
+fn test_closure() {
+    let sum: fn(i32, i32) -> i32 = |x, y| -> i32 { x + y };
+    let result = sum(2, 4);
+    assert_eq!(result, 6);
+
+    let os: &str = "linux kernel";
+    let os_upper: String =
+        str_convert_to_upper(os, |value: String| -> String { value.to_uppercase() });
+    assert_eq!(os_upper, "LINUX KERNEL");
+
+    println!("{}", os_upper);
+
+    // calculator clouser
+    let add = |a: i32, b: i32| a + b;
+    let multiply = |a: i32, b: i32| a * b;
+    let substance = |a: i32, b: i32| a - b;
+
+    assert_eq!(calculator(2, 4, add), 6);
+    assert_eq!(calculator(2, 4, multiply), 8);
+    assert_eq!(calculator(2, 4, substance), -2);
+
+    let price_usd: Vec<u32> = vec![10, 20, 50];
+    let curs_idr = 15000;
+    let price_idr: Vec<u32> = price_usd.iter().map(|v| v * curs_idr).collect();
+    assert_eq!(price_idr, vec![150000, 300000, 750000]);
+
+    let mut list_product = vec![
+        Product {
+            id: "lp-1",
+            name: "laptop",
+            price: 1000000,
+            quantity: 10,
+        },
+        Product {
+            id: "lp-2",
+            name: "monitor",
+            price: 500000,
+            quantity: 5,
+        },
+        Product {
+            id: "lp-3",
+            name: "keyboard",
+            price: 100000,
+            quantity: 20,
+        },
+    ];
+
+    list_product.retain(|product| product.quantity > 5);
+    println!("{:#?}", list_product);
 }

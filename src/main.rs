@@ -836,6 +836,7 @@ struct Joke {
     sensitive_data: Option<&'static str>,
 }
 
+use std::collections::VecDeque;
 use std::fmt::Debug;
 impl Debug for Joke {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -871,11 +872,16 @@ where
     operation(a, b)
 }
 
+#[derive(Clone)]
 struct Product {
     id: &'static str,
     name: &'static str,
     price: i32,
     quantity: i32,
+}
+
+struct ListedProduct {
+    product_list: Vec<Product>,
 }
 
 impl Debug for Product {
@@ -886,6 +892,45 @@ impl Debug for Product {
             .field("price", &self.price)
             .field("qty", &self.quantity)
             .finish()
+    }
+}
+
+impl SkeletonCrud<String, Product> for ListedProduct {
+    fn create(&mut self, data: Product) -> Product {
+        let data_send = data.clone();
+        self.product_list.push(data_send);
+        data
+    }
+    fn read(&self) -> Vec<Product> {
+        if self.product_list.len() < 1 {
+            return vec![];
+        }
+        self.product_list.clone()
+    }
+    fn find(&self, id: String) -> Option<Product> {
+        let product: Option<Product> = self.product_list.iter().find(|item| item.id == id).cloned();
+        if product.is_none() {
+            return None;
+        }
+        Some(product.unwrap())
+    }
+    fn update(&mut self, id: String, data: Product) -> Option<Product> {
+        let wrap_product: Option<&mut Product> =
+            self.product_list.iter_mut().find(|item| item.id == id);
+        if wrap_product.is_none() {
+            return None;
+        }
+        let mut slot: &mut Product = wrap_product.unwrap();
+        *slot = data;
+        Some(slot.clone())
+    }
+    fn delete(&mut self, id: String) -> Option<Product> {
+        let index: usize = self
+            .product_list
+            .iter()
+            .position(|item| item.id == id)
+            .unwrap();
+        Some(self.product_list.remove(index))
     }
 }
 
@@ -939,4 +984,224 @@ fn test_closure() {
 
     list_product.retain(|product| product.quantity > 5);
     println!("{:#?}", list_product);
+}
+
+// ada 3 category tipe data collection
+// 1. sequence, 2. maps, 3. set
+/*
+- Sequence
+- Vec<T> Koleksi paling umum. Menyimpan daftar nilai dinamis dengan tipe data sama di blok memori bersambung
+- 2. VecDeque<T> Antrean dua arah. Sangat efisien untuk menambah atau menghapus elemen dari awal maupun akhir daftar
+- 3. LinkedList<T> Setiap elemen menyimpan pointer ke elemen sebelum dan sesudahnya (jarang digunakan di Rust karena Vec biasanya lebih efisien di CPU modern)
+*/
+
+// Vec<T> studi kasus keranhang belanja sederhana
+#[test]
+fn test_cart_shopping() {
+    let mut cart: Vec<Product> = Vec::new();
+    // adding element to cart
+    cart.push(Product {
+        id: "p-1",
+        name: "laptop",
+        price: 1000000,
+        quantity: 10,
+    });
+    cart.push(Product {
+        id: "p-2",
+        name: "monitor",
+        price: 500000,
+        quantity: 5,
+    });
+
+    // print cart
+    println!("1.{:#?}", cart);
+
+    // update cart quantity
+    for product in &mut cart {
+        if product.id == "p-1" {
+            product.quantity = product.quantity + 10
+        }
+    }
+
+    // print cart
+    println!("2.{:#?}", cart);
+
+    // hitung total price yang ada di dalam cart
+    let total: i32 = cart.iter().map(|item| item.price).sum();
+    println!("total price: {}", total);
+
+    // delete product yang terakhir dimasukkan
+    cart.pop();
+
+    // print cart
+    println!("3.{:#?}", cart);
+}
+
+// VecDeque<T> studi kasus antrean proses transaksi bank sederhana
+struct Transaction {
+    id: u32,
+    send: &'static str,
+    amount: u64,
+}
+
+impl Debug for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Transaction")
+            .field("id", &self.id)
+            .field("send", &self.send)
+            .field("amount", &self.amount)
+            .finish()
+    }
+}
+
+#[test]
+fn test_queue_bank() {
+    // membuat antrean kosong
+    let mut queue_trancation: VecDeque<Transaction> = VecDeque::new();
+
+    // adding queue to transaction
+    queue_trancation.push_back(Transaction {
+        id: 101,
+        send: "budi",
+        amount: 500_000,
+    });
+    queue_trancation.push_back(Transaction {
+        id: 102,
+        send: "siti",
+        amount: 400_000,
+    });
+    queue_trancation.push_front(Transaction {
+        id: 103,
+        send: "andi",
+        amount: 300_000,
+    });
+
+    let mut other_queue_bank: VecDeque<Transaction> = VecDeque::new();
+    other_queue_bank.push_back(Transaction {
+        id: 104,
+        send: "joko",
+        amount: 200_000,
+    });
+
+    // menggabungkan antrean
+    queue_trancation.append(&mut other_queue_bank);
+
+    println!("jumlah antrian saat ini {}", queue_trancation.len());
+    println!();
+
+    println!("1.{:#?}", queue_trancation);
+
+    println!();
+
+    println!("memulai pemrosesan transaksi...");
+    while let Some(data) = queue_trancation.pop_front() {
+        println!(
+            "memproses id {} transfer rp. {} dari {}",
+            data.id, data.amount, data.send
+        );
+    }
+    println!("jumlah antrian saat ini {}", queue_trancation.len());
+}
+
+fn print_username_borrow(param1: &mut String) -> String {
+    param1.push_str(" updated");
+    param1.to_string()
+}
+
+fn print_username_not_borrow(param1: String) -> String {
+    param1
+}
+
+fn print_stack(param1: u32) -> () {
+    println!("param1: {}", param1);
+}
+
+#[test]
+fn owner_ship_sample() {
+    let num1: u32 = 10; // value data num1 disimpan didalam stack
+    let name: String = String::from("arado"); // value data name disimpan didalam heap
+
+    print_stack(num1);
+    println!("num1: {}", num1);
+
+    // ownership name dipindah ke print_username_borrow
+    // kemudian hasil print_username_borrow disimpan didalam variable res1 yang dimana ini pemilik ownership yang baru
+    let res1 = print_username_not_borrow(name);
+
+    let mut fname = String::from("arado");
+
+    let mut res2 = print_username_borrow(&mut fname);
+
+    println!("old {}, new {}", res1, res2);
+
+    let mut product: Vec<Product> = Vec::new();
+
+    product.push(Product {
+        id: "p-1",
+        name: "laptop",
+        price: 1000000,
+        quantity: 10,
+    });
+
+    product
+        .iter()
+        .for_each(|item: &Product| println!("{:?}", item));
+}
+
+#[test]
+fn test_product_list() {
+    // buat list kosong
+    let mut list_product: ListedProduct = ListedProduct {
+        product_list: Vec::new(),
+    };
+
+    // start 2 data ini akan dimasukkan kedalam list_product
+    let p1 = Product {
+        id: "p-1",
+        name: "laptop",
+        price: 1000000,
+        quantity: 10,
+    };
+
+    let p2 = Product {
+        id: "p-2",
+        name: "monitor",
+        price: 300000,
+        quantity: 20,
+    };
+
+    // memasukkan data ke dalam list_product ownership
+    list_product.create(p1);
+    list_product.create(p2);
+
+    println!();
+    println!(
+        "find data p-1: {:#?}",
+        list_product.find("p-1".to_string()).unwrap()
+    );
+
+    // iterasi data
+    println!();
+    println!("product list: {:#?}", list_product.read());
+
+    // update data
+    let p2_update = Product {
+        id: "p-2",
+        name: "monitor samsung",
+        price: 500000,
+        quantity: 8,
+    };
+    list_product.update("p-2".to_string(), p2_update);
+
+    // iterasi data
+    println!();
+    println!("after update product list: {:#?}", list_product.read());
+
+    // delete data
+    list_product.delete("p-1".to_string());
+    println!();
+    println!(
+        "data yang tersisa count={}",
+        list_product.product_list.len()
+    );
 }
